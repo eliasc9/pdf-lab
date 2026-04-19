@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FileUp, Image as ImageIcon, FileText, Loader2, ArrowUp, ArrowDown, Trash2, Download } from 'lucide-react';
+import { FileUp, Image as ImageIcon, FileText, Loader2, ArrowUp, ArrowDown, Trash2, Download, Github } from 'lucide-react';
 import { cn } from './lib/utils';
 import { Dropzone } from './components/ui/Dropzone';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -349,10 +349,20 @@ export default function App() {
       </main>
 
       {/* Footer Info */}
-      <footer className="h-12 bg-black text-white px-10 flex items-center justify-between text-[10px] font-mono uppercase tracking-widest mt-auto shrink-0">
-        <div className="hidden sm:block">System Architecture: v3.0.0-PRO</div>
-        <div className="flex gap-8 items-center w-full sm:w-auto justify-between sm:justify-start">
-          <span>Local Processing Only</span>
+      <footer className="h-12 bg-black text-white px-4 sm:px-10 flex items-center justify-between text-[10px] font-mono uppercase tracking-widest mt-auto shrink-0">
+        <div className="hidden sm:flex items-center gap-6">
+          <span>System Architecture: v3.0.0-PRO</span>
+          <a href="https://github.com/eliasc9/pdf-lab" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 hover:text-red-500 transition-colors">
+            <Github className="w-3 h-3" />
+            <span>GitHub / Open Source</span>
+          </a>
+        </div>
+        <div className="flex gap-4 sm:gap-8 items-center w-full sm:w-auto justify-between sm:justify-start">
+          <a href="https://github.com/eliasc9/pdf-lab" target="_blank" rel="noopener noreferrer" className="sm:hidden flex items-center gap-2 hover:text-red-500 transition-colors">
+            <Github className="w-4 h-4" />
+            <span>GitHub</span>
+          </a>
+          <span className="hidden sm:inline">Local Processing Only</span>
           <span className="text-red-500 font-bold">● LIVE_BUFFER_ACTIVE</span>
         </div>
       </footer>
