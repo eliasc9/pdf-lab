@@ -77,7 +77,7 @@ export function PdfEditor({ items, onExport, onCancel }: PdfEditorProps) {
   const [isLoading, setIsLoading] = useState(true);
   
   const [settings, setSettings] = useState({ compression: 'medium', forceImage: false, embedMetadata: true });
-  const [activeDrag, setActiveDrag] = useState<{ itemId: string; annId: string } | null>(null);
+  const [activeDrag, setActiveDrag] = useState<{ itemId: string; annId: string; offsetX: number; offsetY: number } | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -310,7 +310,7 @@ export function PdfEditor({ items, onExport, onCancel }: PdfEditorProps) {
                               {spec.itemName} (Pg {spec.originalPageIndex + 1})
                            </div>
                            <div className="bg-red-600 text-white text-[12px] font-black uppercase px-3 py-1 flex-shrink-0">
-                              FINAL PG {index + 1}
+                               FINAL PG {index + 1}
                            </div>
                         </div>
                         <div 
@@ -333,9 +333,9 @@ export function PdfEditor({ items, onExport, onCancel }: PdfEditorProps) {
                                    onPointerDown={(e) => e.stopPropagation()}
                                    onClick={(e) => e.stopPropagation()}
                                  >
-                                    <div className="relative flex items-end translate-y-[-100%]">
+                                    <div className="relative translate-y-[-100%]">
                                         <div 
-                                          className="p-1 cursor-move text-gray-500 hover:text-black opacity-0 group-hover/ann:opacity-100 transition-opacity bg-white border-2 border-black hover:bg-gray-100 touch-none flex items-center justify-center shadow-[2px_2px_0_0_#000] mr-2 mb-[-1px]"
+                                          className="absolute right-full bottom-0 p-1 cursor-move text-gray-500 hover:text-black opacity-0 group-hover/ann:opacity-100 transition-opacity bg-white border-4 border-black hover:bg-gray-100 touch-none flex items-center justify-center shadow-[4px_4px_0_0_#000] mr-4 mb-[-1px]"
                                           onPointerDown={(e) => {
                                             const parentRect = e.currentTarget.closest('.group\\/page')?.getBoundingClientRect();
                                             if (parentRect) {
@@ -362,13 +362,13 @@ export function PdfEditor({ items, onExport, onCancel }: PdfEditorProps) {
                                     </div>
                                     
                                     <div 
-                                      className={cn("absolute left-0 top-0 bg-black text-white flex border-2 border-black transition-opacity pointer-events-auto h-[32px] items-center shadow-[2px_2px_0_0_#000]", isActiveDrag ? "opacity-0" : "opacity-0 group-hover/ann:opacity-100")}
+                                      className={cn("absolute left-0 top-0 bg-black text-white flex border-4 border-black transition-opacity pointer-events-auto h-[36px] items-center shadow-[4px_4px_0_0_#000]", isActiveDrag ? "opacity-0" : "opacity-0 group-hover/ann:opacity-100")}
                                     >
-                                       <button onClick={(e) => { e.stopPropagation(); toggleBold(spec.itemId, ann.id); }} className={cn("h-full px-3 border-r-2 border-black flex items-center justify-center font-serif text-sm transition-colors", ann.bold ? "bg-red-600 font-bold" : "hover:bg-gray-800")} title="Toggle Bold">B</button>
-                                       <button onClick={(e) => { e.stopPropagation(); changeTextSize(spec.itemId, ann.id, -2); }} className="h-full px-2 hover:bg-red-600 border-r-2 border-black flex items-center justify-center" title="Decrease Size"><Minus className="w-3 h-3" /></button>
-                                       <div className="h-full px-2 text-xs font-mono flex items-center justify-center font-bold bg-white text-black border-r-2 border-black min-w-[3rem]">{ann.size || 24}</div>
-                                       <button onClick={(e) => { e.stopPropagation(); changeTextSize(spec.itemId, ann.id, 2); }} className="h-full px-2 hover:bg-red-600 border-r-2 border-black flex items-center justify-center" title="Increase Size"><Plus className="w-3 h-3" /></button>
-                                       <button onClick={(e) => { e.stopPropagation(); removeAnn(spec.itemId, ann.id); }} className="h-full px-3 hover:bg-red-600 text-white flex items-center justify-center"><X className="w-4 h-4" /></button>
+                                       <button onClick={(e) => { e.stopPropagation(); toggleBold(spec.itemId, ann.id); }} className={cn("h-full px-4 border-r-4 border-black flex items-center justify-center font-serif text-sm transition-colors", ann.bold ? "bg-red-600 font-bold" : "hover:bg-gray-800")} title="Toggle Bold">B</button>
+                                       <button onClick={(e) => { e.stopPropagation(); changeTextSize(spec.itemId, ann.id, -2); }} className="h-full px-3 hover:bg-red-600 border-r-4 border-black flex items-center justify-center" title="Decrease Size"><Minus className="w-4 h-4" /></button>
+                                       <div className="h-full px-4 text-xs font-mono flex items-center justify-center font-bold bg-white text-black border-r-4 border-black min-w-[3.5rem]">{ann.size || 24}</div>
+                                       <button onClick={(e) => { e.stopPropagation(); changeTextSize(spec.itemId, ann.id, 2); }} className="h-full px-3 hover:bg-red-600 border-r-4 border-black flex items-center justify-center" title="Increase Size"><Plus className="w-4 h-4" /></button>
+                                       <button onClick={(e) => { e.stopPropagation(); removeAnn(spec.itemId, ann.id); }} className="h-full px-4 hover:bg-red-600 text-white flex items-center justify-center"><X className="w-5 h-5" /></button>
                                     </div>
                                  </div>
                               );
