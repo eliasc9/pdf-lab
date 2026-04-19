@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#F9F9F9" />
+  <rect x="40" y="40" width="432" height="432" fill="#ffffff" stroke="#111111" stroke-width="40" />
+  <text x="256" y="250" font-family="system-ui, sans-serif" font-size="220" font-weight="900" text-anchor="middle" dominant-baseline="central" fill="#111111">PDF</text>
+  <rect x="40" y="380" width="432" height="92" fill="#dc2626" stroke="#111111" stroke-width="40" />
+</svg>

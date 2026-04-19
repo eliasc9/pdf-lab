@@ -16,22 +16,18 @@ export default defineConfig(({mode}) => {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,wasm,pdf}']
         },
         manifest: {
-          name: 'PDF.LAB',
+          name: 'PDF.LAB | Offline Document Workspace',
           short_name: 'PDF.LAB',
-          description: 'Offline Merge, Cut and To-Image PDFs.',
+          description: 'Offline Merge, Cut and To-Image PDFs. Client-side, privacy-focused.',
           theme_color: '#F9F9F9',
           background_color: '#F9F9F9',
           display: 'standalone',
           icons: [
             {
-              src: 'https://placehold.co/192x192/000000/FFFFFF.png?text=PDF&font=Montserrat',
-              sizes: '192x192',
-              type: 'image/png'
-            },
-            {
-              src: 'https://placehold.co/512x512/000000/FFFFFF.png?text=PDF.LAB&font=Montserrat',
+              src: '/favicon.svg',
               sizes: '512x512',
-              type: 'image/png'
+              type: 'image/svg+xml',
+              purpose: 'any maskable'
             }
           ]
         }

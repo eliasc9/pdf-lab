@@ -1,6 +1,6 @@
 {
-  "name": "Utilidad PDF Avanzada",
-  "description": "Herramienta en el navegador para unir, cortar, y transformar PDFs a imágenes.",
+  "name": "PDF.LAB | Offline Document Workspace",
+  "description": "An advanced, offline-first neo-brutalist browser utility designed to merge, split, and extract PDF documents with total privacy completely in your browser.",
   "requestFramePermissions": [],
   "majorCapabilities": []
 }
