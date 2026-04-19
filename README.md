@@ -1,20 +1,18 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# PDF.LAB
+**https://pdf.tizaapp.com/ - Offline Merge, Cut and To-Image PDFs.**
 
-# Run and deploy your AI Studio app
+PDF.LAB is an advanced, fully client-side (offline-first) browser utility that allows you to easily process PDF documents without uploading them to any remote server. Your data stays in your browser.
 
-This contains everything you need to run your app locally.
+## Features
+- **Offline First**: Works without an internet connection once loaded.
+- **Privacy Focused**: No servers, no uploads. Everything happens on your local machine using WebAssembly and canvas technologies.
+- **Merge PDFs**: Combine multiple PDF files into one.
+- **Split & Extract**: Select specific pages (e.g. `1, 3, 5-9`) to keep.
+- **Image PDF Flattening**: Convert entire PDFs (or specific pages) into flattened image-based PDFs, ideal for securing signatures or read-only forms.
+- **Reorder**: Drag and drop visual reordering.
 
-View your app in AI Studio: https://ai.studio/apps/7fcaf4b9-42ed-4288-bc22-1d758659079a
+## Infrastructure
+This project is configured to run fully static. It outputs to a `dist` directory via Vite and includes a `wrangler.json` to deploy seamlessly to Cloudflare Pages.
 
-## Run Locally
-
-**Prerequisites:**  Node.js
-
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## Security
+This repository is 100% safe to be public. It does not require any backend API keys, secrets, or remote databases. Output processing is handled strictly using `pdf-lib` and `pdfjs-dist` on the client.
