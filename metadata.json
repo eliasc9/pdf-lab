@@ -1,0 +1,6 @@
+{
+  "name": "Utilidad PDF Avanzada",
+  "description": "Herramienta en el navegador para unir, cortar, y transformar PDFs a imágenes.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
