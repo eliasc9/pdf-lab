@@ -153,7 +153,7 @@ export function PdfEditor({ items, onExport, onCancel }: PdfEditorProps) {
     setLocalItems(prev => prev.map(it => 
        it.id === itemId ? { 
          ...it, 
-         annotations: (it.annotations || []).map(a => a.id === annId ? { ...a, size: Math.max(12, Math.min(120, (a.size || 24) + delta)) } : a) 
+         annotations: (it.annotations || []).map(a => a.id === annId ? { ...a, size: Math.max(4, Math.min(120, (a.size || 24) + delta)) } : a) 
        } : it
     ));
   };
@@ -328,40 +328,41 @@ export function PdfEditor({ items, onExport, onCancel }: PdfEditorProps) {
                               return (
                                  <div 
                                    key={ann.id}
-                                   className={cn("absolute group/ann no-add-text flex flex-col", isActiveDrag ? "z-50" : "z-10")}
+                                   className={cn("absolute group/ann no-add-text flex flex-col items-start", isActiveDrag ? "z-50" : "z-10")}
                                    style={{ top: `${ann.y * 100}%`, left: `${ann.x * 100}%` }}
                                    onPointerDown={(e) => e.stopPropagation()}
                                    onClick={(e) => e.stopPropagation()}
                                  >
-                                    <div className="relative">
+                                    <div className="relative flex items-end translate-y-[-100%]">
                                         <div 
-                                          className="absolute right-[100%] top-0 mr-1 cursor-move text-gray-500 hover:text-black opacity-0 group-hover/ann:opacity-100 transition-opacity bg-white border-2 border-black hover:bg-gray-100 touch-none flex items-center justify-center shadow-[2px_2px_0_0_#000]"
+                                          className="p-1 cursor-move text-gray-500 hover:text-black opacity-0 group-hover/ann:opacity-100 transition-opacity bg-white border-2 border-black hover:bg-gray-100 touch-none flex items-center justify-center shadow-[2px_2px_0_0_#000] mr-2 mb-[-1px]"
                                           onPointerDown={(e) => {
                                             const parentRect = e.currentTarget.closest('.group\\/page')?.getBoundingClientRect();
                                             if (parentRect) {
                                               const absoluteX = parentRect.left + (ann.x * parentRect.width);
                                               const absoluteY = parentRect.top + (ann.y * parentRect.height);
                                               setActiveDrag({ itemId: spec.itemId, annId: ann.id, offsetX: e.clientX - absoluteX, offsetY: e.clientY - absoluteY });
-                                            } else {
-                                              setActiveDrag({ itemId: spec.itemId, annId: ann.id, offsetX: 0, offsetY: 0 });
                                             }
                                           }}
                                         >
-                                           <Move className="w-5 h-5 p-1" />
+                                           <Move className="w-5 h-5" />
                                         </div>
                                         
-                                        <input 
-                                           autoFocus
-                                           value={ann.text || ''}
-                                           onChange={(e) => updateText(spec.itemId, ann.id, e.target.value)}
-                                           className={cn("bg-transparent border-2 border-transparent focus:border-red-600 text-black outline-none w-auto hover:bg-yellow-200/20 transition-colors shrink-0 leading-none pb-0 m-0", ann.bold ? "font-black" : "font-normal")}
-                                           style={{ fontSize: dynamicFontSize, minWidth: '150px' }}
-                                           placeholder="Type text..."
-                                        />
+                                        <div className="relative">
+                                           <input 
+                                              autoFocus
+                                              value={ann.text || ''}
+                                              onChange={(e) => updateText(spec.itemId, ann.id, e.target.value)}
+                                              className={cn("bg-transparent border-none text-black outline-none w-auto hover:bg-yellow-200/20 transition-colors leading-none m-0 p-0 block", ann.bold ? "font-black" : "font-normal")}
+                                              style={{ fontSize: dynamicFontSize, minWidth: '4px' }}
+                                              placeholder="Type..."
+                                           />
+                                           <div className="absolute top-[100%] left-0 right-0 h-[2px] bg-red-600/60 pointer-events-none" />
+                                        </div>
                                     </div>
                                     
                                     <div 
-                                      className={cn("absolute left-0 top-[100%] mt-2 bg-black text-white flex border-2 border-black transition-opacity pointer-events-auto h-[32px] items-center shadow-[2px_2px_0_0_#000]", isActiveDrag ? "opacity-0" : "opacity-0 group-hover/ann:opacity-100")}
+                                      className={cn("absolute left-0 top-0 bg-black text-white flex border-2 border-black transition-opacity pointer-events-auto h-[32px] items-center shadow-[2px_2px_0_0_#000]", isActiveDrag ? "opacity-0" : "opacity-0 group-hover/ann:opacity-100")}
                                     >
                                        <button onClick={(e) => { e.stopPropagation(); toggleBold(spec.itemId, ann.id); }} className={cn("h-full px-3 border-r-2 border-black flex items-center justify-center font-serif text-sm transition-colors", ann.bold ? "bg-red-600 font-bold" : "hover:bg-gray-800")} title="Toggle Bold">B</button>
                                        <button onClick={(e) => { e.stopPropagation(); changeTextSize(spec.itemId, ann.id, -2); }} className="h-full px-2 hover:bg-red-600 border-r-2 border-black flex items-center justify-center" title="Decrease Size"><Minus className="w-3 h-3" /></button>

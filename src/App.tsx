@@ -51,30 +51,56 @@ export default function App() {
         const f = files[i];
         try {
             const arrayBuffer = await f.arrayBuffer();
-            const pdf = await PDFDocument.load(arrayBuffer, { ignoreEncryption: true });
-            const pages = pdf.getPageCount();
-            
+            let pdf: PDFDocument;
+            let pages: number;
             let loadedAnnotations: Annotation[] = [];
-            const subject = pdf.getSubject();
-            if (subject && subject.startsWith("PDF_LAB_STATE:")) {
-               try {
-                  const statePayload = JSON.parse(decodeURIComponent(atob(subject.substring(14))));
-                  loadedAnnotations = statePayload || [];
-               } catch(ex) {
-                  console.warn("Failed to parse metadata");
-               }
-            }
 
-            newItems.push({
-                id: Math.random().toString(36).substring(2, 9),
-                file: f,
-                name: f.name,
-                size: f.size,
-                totalPages: pages,
-                range: `1-${pages}`,
-                mode: 'vector',
-                annotations: loadedAnnotations
-            });
+            if (f.type.startsWith('image/')) {
+                pdf = await PDFDocument.create();
+                const image = f.type === 'image/jpeg' ? await pdf.embedJpg(arrayBuffer) : await pdf.embedPng(arrayBuffer);
+                const page = pdf.addPage([image.width, image.height]);
+                page.drawImage(image, { x: 0, y: 0, width: image.width, height: image.height });
+                pages = 1;
+                // Convert the newly created PDF to a File object for consistency
+                const pdfBytes = await pdf.save();
+                const pdfBlob = new Blob([pdfBytes], { type: 'application/pdf' });
+                const pdfFile = new File([pdfBlob], f.name.replace(/\.[^/.]+$/, "") + ".pdf", { type: 'application/pdf' });
+                
+                newItems.push({
+                    id: Math.random().toString(36).substring(2, 9),
+                    file: pdfFile,
+                    name: f.name,
+                    size: pdfFile.size,
+                    totalPages: 1,
+                    range: '1',
+                    mode: 'image',
+                    annotations: []
+                });
+            } else {
+                const pdf = await PDFDocument.load(arrayBuffer, { ignoreEncryption: true });
+                const pages = pdf.getPageCount();
+                const subject = pdf.getSubject();
+                let loadedAnnotations: Annotation[] = [];
+                if (subject && subject.startsWith("PDF_LAB_STATE:")) {
+                   try {
+                      const statePayload = JSON.parse(decodeURIComponent(atob(subject.substring(14))));
+                      loadedAnnotations = statePayload || [];
+                   } catch(ex) {
+                      console.warn("Failed to parse metadata");
+                   }
+                }
+
+                newItems.push({
+                    id: Math.random().toString(36).substring(2, 9),
+                    file: f,
+                    name: f.name,
+                    size: f.size,
+                    totalPages: pages,
+                    range: `1-${pages}`,
+                    mode: 'vector',
+                    annotations: loadedAnnotations
+                });
+            }
         } catch (e) {
             console.error("Failed to parse", f.name);
         }
@@ -103,7 +129,6 @@ export default function App() {
   const handleExport = async (exportItems: PdfItem[], exportSettings: { compression: string, forceImage: boolean, embedMetadata?: boolean }) => {
     if (exportItems.length === 0) return;
     setItems(exportItems);
-    setShowGlobalEditor(false);
     setIsProcessing(true);
     setProgress({ current: 0, total: 100, message: 'Initializing Export...' });
     
@@ -146,7 +171,7 @@ export default function App() {
                    if (ann.type === 'text' && ann.text) {
                        const fontSize = ann.size || 24;
                        const font = ann.bold ? fontBold : fontNormal;
-                       const pdfY = height - (ann.y * height) - (fontSize * 0.76); // Approximation line alignment offset
+                       const pdfY = height - (ann.y * height); // Direct baseline match
                        page.drawText(ann.text, {
                            x: ann.x * width,
                            y: pdfY,
@@ -188,7 +213,7 @@ export default function App() {
                            const fontSize = ann.size ? ann.size * 2 : 48; // since we use scale: 2.0
                            ctx.font = `${ann.bold ? '900' : '400'} ${fontSize}px sans-serif`; 
                            ctx.fillStyle = 'black';
-                           ctx.textBaseline = 'top'; // exact matching to DOM top-left
+                           ctx.textBaseline = 'bottom'; // exact matching to baseline red line
                            ctx.fillText(ann.text, ann.x * canvas.width, ann.y * canvas.height);
                        }
                     });
@@ -228,7 +253,14 @@ export default function App() {
       }
 
       const pdfBytes = await newPdf.save();
-      downloadFile(pdfBytes, 'exported_document.pdf', 'application/pdf');
+      
+      const baseName = exportItems
+        .slice(0, 2)
+        .map(it => it.name.replace(/\.[^/.]+$/, "").substring(0, 12))
+        .join("_") + (exportItems.length > 2 ? "_etc" : "");
+      const fileName = `${baseName}_PDFLAB.pdf`.replace(/\s+/g, '_');
+      
+      downloadFile(pdfBytes, fileName, 'application/pdf');
     } catch (e) {
         console.error(e);
         alert('Failed to export document');

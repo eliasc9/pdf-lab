@@ -9,7 +9,7 @@ interface DropzoneProps {
   className?: string;
 }
 
-export function Dropzone({ onFiles, multiple = true, accept = ".pdf", className }: DropzoneProps) {
+export function Dropzone({ onFiles, multiple = true, accept = ".pdf,image/png,image/jpeg,image/webp", className }: DropzoneProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -17,7 +17,11 @@ export function Dropzone({ onFiles, multiple = true, accept = ".pdf", className 
     e.preventDefault();
     setIsDragOver(false);
     const rawFiles = Array.from(e.dataTransfer.files) as File[];
-    const files = rawFiles.filter((f) => f.name.toLowerCase().endsWith('.pdf'));
+    const allowedExtensions = ['.pdf', '.png', '.jpg', '.jpeg', '.webp'];
+    const files = rawFiles.filter((f) => {
+      const name = f.name.toLowerCase();
+      return allowedExtensions.some(ext => name.endsWith(ext));
+    });
     if (!multiple && files.length > 1) {
       onFiles([files[0]]);
     } else {
@@ -55,8 +59,8 @@ export function Dropzone({ onFiles, multiple = true, accept = ".pdf", className 
           +
         </div>
         <div className="text-center">
-          <p className="font-black uppercase text-lg sm:text-xl leading-none">Add PDF{multiple ? 's' : ''}</p>
-          <p className="text-[10px] font-mono opacity-50 uppercase mt-1">Drag & Drop or Click to Select</p>
+          <p className="font-black uppercase text-lg sm:text-xl leading-none">Add Files</p>
+          <p className="text-[10px] font-mono opacity-50 uppercase mt-1">PDF or Images (Drag & Drop or Click)</p>
         </div>
       </div>
       <input 
