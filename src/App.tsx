@@ -171,7 +171,7 @@ export default function App() {
                    if (ann.type === 'text' && ann.text) {
                        const fontSize = ann.size || 24;
                        const font = ann.bold ? fontBold : fontNormal;
-                       const pdfY = height - (ann.y * height); // Direct baseline match
+                       const pdfY = height - (ann.y * height) + (fontSize * 0.14); // Corrected baseline offset
                        page.drawText(ann.text, {
                            x: ann.x * width,
                            y: pdfY,
