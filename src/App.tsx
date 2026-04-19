@@ -1,29 +1,20 @@
 import { useState } from 'react';
-import { FileUp, Image as ImageIcon, FileText, Loader2, ArrowUp, ArrowDown, Trash2, Download, Github } from 'lucide-react';
+import { FileUp, Loader2, ArrowUp, ArrowDown, Trash2, Download, Github, Edit2, Settings2, X } from 'lucide-react';
 import { cn } from './lib/utils';
 import { Dropzone } from './components/ui/Dropzone';
 import { motion, AnimatePresence } from 'framer-motion';
-import { PDFDocument } from 'pdf-lib';
+import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { pdfjsLib } from './lib/pdfjs';
 import { downloadFile } from './lib/download';
-
-interface PdfItem {
-  id: string;
-  file: File;
-  name: string;
-  size: number;
-  totalPages: number;
-  range: string;
-}
+import { PdfItem, Annotation } from './lib/types';
+import { PdfEditor } from './components/PdfEditor';
 
 function parseRange(rangeStr: string, maxPages: number): number[] {
   const indices = new Set<number>();
   const parts = rangeStr.split(',');
-  
   for (const part of parts) {
     const p = part.trim();
     if (!p) continue;
-    
     if (p.includes('-')) {
       const [startStr, endStr] = p.split('-');
       const start = Number(startStr);
@@ -40,15 +31,15 @@ function parseRange(rangeStr: string, maxPages: number): number[] {
       }
     }
   }
-  
   return Array.from(indices).sort((a,b) => a - b);
 }
 
 export default function App() {
   const [items, setItems] = useState<PdfItem[]>([]);
-  const [globalMode, setGlobalMode] = useState<'vector' | 'image'>('vector');
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState<{ current: number; total: number; message: string } | null>(null);
+  
+  const [showGlobalEditor, setShowGlobalEditor] = useState(false);
 
   const handleAddFiles = async (files: File[]) => {
     setIsProcessing(true);
@@ -62,13 +53,27 @@ export default function App() {
             const arrayBuffer = await f.arrayBuffer();
             const pdf = await PDFDocument.load(arrayBuffer, { ignoreEncryption: true });
             const pages = pdf.getPageCount();
+            
+            let loadedAnnotations: Annotation[] = [];
+            const subject = pdf.getSubject();
+            if (subject && subject.startsWith("PDF_LAB_STATE:")) {
+               try {
+                  const statePayload = JSON.parse(decodeURIComponent(atob(subject.substring(14))));
+                  loadedAnnotations = statePayload || [];
+               } catch(ex) {
+                  console.warn("Failed to parse metadata");
+               }
+            }
+
             newItems.push({
                 id: Math.random().toString(36).substring(2, 9),
                 file: f,
                 name: f.name,
                 size: f.size,
                 totalPages: pages,
-                range: `1-${pages}`
+                range: `1-${pages}`,
+                mode: 'vector',
+                annotations: loadedAnnotations
             });
         } catch (e) {
             console.error("Failed to parse", f.name);
@@ -81,9 +86,7 @@ export default function App() {
     setProgress(null);
   };
 
-  const removeItem = (id: string) => {
-    setItems(items.filter(i => i.id !== id));
-  };
+  const removeItem = (id: string) => setItems(items.filter(i => i.id !== id));
   
   const moveItem = (index: number, direction: -1 | 1) => {
     const newIndex = index + direction;
@@ -95,53 +98,80 @@ export default function App() {
     setItems(newItems);
   };
   
-  const updateRange = (id: string, range: string) => {
-    setItems(items.map(i => i.id === id ? { ...i, range } : i));
-  };
+  const updateRange = (id: string, range: string) => setItems(items.map(i => i.id === id ? { ...i, range } : i));
 
-  const handleExport = async () => {
-    if (items.length === 0) return;
+  const handleExport = async (exportItems: PdfItem[], exportSettings: { compression: string, forceImage: boolean, embedMetadata?: boolean }) => {
+    if (exportItems.length === 0) return;
+    setItems(exportItems);
+    setShowGlobalEditor(false);
     setIsProcessing(true);
     setProgress({ current: 0, total: 100, message: 'Initializing Export...' });
     
     try {
       const newPdf = await PDFDocument.create();
+      const fontNormal = await newPdf.embedFont(StandardFonts.Helvetica);
+      const fontBold = await newPdf.embedFont(StandardFonts.HelveticaBold);
       let hasPages = false;
-
-      // Calculate total steps for accurate progress tracking
       let totalSteps = 0;
-      const tasks = items.map(item => {
+      
+      const tasks = exportItems.map(item => {
         const pages = parseRange(item.range, item.totalPages);
-        if (globalMode === 'image') {
-           totalSteps += pages.length;
-        } else {
-           totalSteps += 1;
-        }
-        return { item, pages };
+        const effectiveMode = exportSettings.forceImage ? 'image' : item.mode;
+        if (effectiveMode === 'image') totalSteps += pages.length;
+        else totalSteps += 1;
+        return { item, pages, effectiveMode };
       });
       
       let processedSteps = 0;
+      let globalResultPageIndex = 0;
+      const metadataAnnotations: Annotation[] = [];
 
       for (let i = 0; i < tasks.length; i++) {
-        const { item, pages } = tasks[i];
+        const { item, pages, effectiveMode } = tasks[i];
         if (pages.length === 0) continue;
         
-        if (globalMode === 'vector') {
+        if (effectiveMode === 'vector') {
             setProgress({ current: processedSteps, total: Math.max(totalSteps, 1), message: `Merging Vector: ${item.name}` });
             const arrayBuffer = await item.file.arrayBuffer();
             const pdf = await PDFDocument.load(arrayBuffer);
             const copiedPages = await newPdf.copyPages(pdf, pages);
-            copiedPages.forEach((page) => newPdf.addPage(page));
-            hasPages = true;
+            
+            copiedPages.forEach((page, idx) => {
+                const origIndex = pages[idx];
+                const pageAnns = item.annotations.filter(a => a.pageIndex === origIndex);
+                const { width, height } = page.getSize();
+                
+                pageAnns.forEach(ann => {
+                   metadataAnnotations.push({ ...ann, pageIndex: globalResultPageIndex });
+                   if (ann.type === 'text' && ann.text) {
+                       const fontSize = ann.size || 24;
+                       const font = ann.bold ? fontBold : fontNormal;
+                       const pdfY = height - (ann.y * height) - (fontSize * 0.76); // Approximation line alignment offset
+                       page.drawText(ann.text, {
+                           x: ann.x * width,
+                           y: pdfY,
+                           size: fontSize,
+                           font: font,
+                           color: rgb(0,0,0)
+                       });
+                   }
+                });
+                newPdf.addPage(page);
+                hasPages = true;
+                globalResultPageIndex++;
+            });
             processedSteps += 1;
         } else {
             const arrayBuffer = await item.file.arrayBuffer();
             const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
             const pdf = await loadingTask.promise;
             
+            const compressionMap = { 'low': 0.9, 'medium': 0.6, 'high': 0.3 };
+            const quality = compressionMap[exportSettings.compression as keyof typeof compressionMap] || 0.6;
+            
             for (const pageIndex of pages) {
-                setProgress({ current: processedSteps, total: Math.max(totalSteps, 1), message: `Rendering Image Pg ${pageIndex+1} of ${item.name}` });
-                const page = await pdf.getPage(pageIndex + 1); // 1-based
+                setProgress({ current: processedSteps, total: Math.max(totalSteps, 1), message: `Rendering Pg ${pageIndex+1} of ${item.name}` });
+                const page = await pdf.getPage(pageIndex + 1); 
                 const viewport = page.getViewport({ scale: 2.0 }); 
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
@@ -151,19 +181,27 @@ export default function App() {
                     // @ts-ignore
                     await page.render({ canvasContext: ctx, viewport }).promise;
                     
-                    const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+                    const pageAnns = item.annotations.filter(a => a.pageIndex === pageIndex);
+                    pageAnns.forEach(ann => {
+                       metadataAnnotations.push({ ...ann, pageIndex: globalResultPageIndex });
+                       if (ann.type === 'text' && ann.text) {
+                           const fontSize = ann.size ? ann.size * 2 : 48; // since we use scale: 2.0
+                           ctx.font = `${ann.bold ? '900' : '400'} ${fontSize}px sans-serif`; 
+                           ctx.fillStyle = 'black';
+                           ctx.textBaseline = 'top'; // exact matching to DOM top-left
+                           ctx.fillText(ann.text, ann.x * canvas.width, ann.y * canvas.height);
+                       }
+                    });
+
+                    const dataUrl = canvas.toDataURL('image/jpeg', quality);
                     const base64Data = dataUrl.split(',')[1];
                     const uint8Array = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
                     
                     const embeddedImage = await newPdf.embedJpg(uint8Array);
                     const newPage = newPdf.addPage([embeddedImage.width, embeddedImage.height]);
-                    newPage.drawImage(embeddedImage, {
-                        x: 0,
-                        y: 0,
-                        width: embeddedImage.width,
-                        height: embeddedImage.height
-                    });
+                    newPage.drawImage(embeddedImage, { x: 0, y: 0, width: embeddedImage.width, height: embeddedImage.height });
                     hasPages = true;
+                    globalResultPageIndex++;
                 }
                 processedSteps++;
             }
@@ -178,6 +216,17 @@ export default function App() {
       }
       
       setProgress({ current: totalSteps, total: totalSteps, message: 'Saving Final PDF...' });
+      
+      // Save metadata for resuming
+      if (exportSettings.embedMetadata !== false && metadataAnnotations.length > 0) {
+         try {
+           const stateString = btoa(encodeURIComponent(JSON.stringify(metadataAnnotations)));
+           newPdf.setSubject("PDF_LAB_STATE:" + stateString);
+         } catch(e) {
+           console.error("Failed to append metadata", e);
+         }
+      }
+
       const pdfBytes = await newPdf.save();
       downloadFile(pdfBytes, 'exported_document.pdf', 'application/pdf');
     } catch (e) {
@@ -189,10 +238,23 @@ export default function App() {
     }
   };
 
+  const handleCancelEditor = (updatedItems: PdfItem[]) => {
+    setItems(updatedItems);
+    setShowGlobalEditor(false);
+  };
+
   const totalSizeMB = (items.reduce((acc, item) => acc + item.size, 0) / 1024 / 1024).toFixed(2);
 
   return (
-    <div className="min-h-screen bg-[#F9F9F9] text-[#111] font-sans selection:bg-red-200 selection:text-red-900 flex flex-col">
+    <div className="min-h-screen bg-[#F9F9F9] text-[#111] font-sans selection:bg-red-200 selection:text-red-900 flex flex-col relative overflow-hidden">
+      {showGlobalEditor && (
+         <PdfEditor 
+            items={items} 
+            onExport={handleExport} 
+            onCancel={handleCancelEditor} 
+         />
+      )}
+
       {/* Header Section */}
       <header className="h-[100px] border-b-4 border-black flex items-center justify-between px-10 bg-white sticky top-0 z-10 hover:border-red-600 transition-colors">
         <div className="text-5xl flex items-center gap-4 font-black tracking-tighter uppercase flex-shrink-0">
@@ -207,7 +269,7 @@ export default function App() {
       </header>
 
       {/* Main Workspace */}
-      <main className="flex-1 flex flex-col w-full max-w-5xl mx-auto p-4 sm:p-10 gap-8">
+      <main className="flex-1 flex flex-col w-full max-w-5xl mx-auto p-4 sm:p-10 gap-8 h-full">
         
         {/* Document Stage */}
         <section className="flex-1 flex flex-col gap-6 min-h-0">
@@ -215,24 +277,20 @@ export default function App() {
             <h1 className="text-5xl sm:text-7xl font-black uppercase tracking-tighter">Workspace</h1>
             
             <div className="flex flex-col sm:flex-row items-end gap-3">
-               {/* Global Mode Selector */}
-               {items.length > 0 && (
-                   <div className="flex flex-col gap-1 w-full sm:w-32 bg-[#F9F9F9] border-4 border-black p-1 h-[56px] justify-center shadow-[4px_4px_0_0_#000]">
-                      <div className="flex rounded-none border-2 border-black overflow-hidden font-bold text-xs uppercase h-full">
-                         <button 
-                            onClick={() => setGlobalMode('vector')}
-                            className={cn("flex-1 text-center transition-colors border-r-2 border-black", globalMode === 'vector' ? "bg-black text-white" : "bg-white text-black hover:bg-gray-200")}
-                         >Text</button>
-                         <button 
-                            onClick={() => setGlobalMode('image')}
-                            className={cn("flex-1 text-center transition-colors", globalMode === 'image' ? "bg-red-600 text-white" : "bg-white text-black hover:bg-gray-200")}
-                         >Img</button>
-                      </div>
-                   </div>
-               )}
+               
+               <button 
+                  onClick={() => setShowGlobalEditor(true)}
+                  disabled={items.length === 0 || isProcessing}
+                  className={cn(
+                    "w-full sm:w-auto h-[56px] px-6 border-4 border-black font-black uppercase flex items-center justify-center gap-2 transition-colors lg:w-48 text-lg",
+                    items.length === 0 || isProcessing ? "opacity-50 cursor-not-allowed bg-gray-200 text-gray-500" : "bg-white hover:bg-black hover:text-white shadow-[4px_4px_0_0_#000] hover:shadow-none hover:translate-x-[4px] hover:translate-y-[4px]"
+                  )}
+               >
+                 <Edit2 className="w-5 h-5" /> Edit
+               </button>
 
                <button
-                  onClick={handleExport}
+                  onClick={() => handleExport(items, { compression: 'medium', forceImage: false, embedMetadata: true })}
                   disabled={items.length === 0 || isProcessing}
                   className={cn(
                     "w-full sm:w-auto h-[56px] flex items-center justify-center gap-2 px-6 font-black uppercase transition-all border-4 border-black text-lg",
@@ -242,27 +300,12 @@ export default function App() {
                   )}
                >
                  {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
-                 <span>Export Final PDF</span>
+                 <span>{isProcessing ? 'Processing...' : 'Export Final PDF'}</span>
                </button>
             </div>
           </div>
 
-          {isProcessing && progress && (
-            <div className="w-full bg-white border-4 border-black shadow-[4px_4px_0_0_#dc2626] p-4 flex flex-col gap-2">
-              <div className="flex justify-between items-center text-xs font-mono font-bold uppercase text-red-600">
-                <span className="truncate" title={progress.message}>{progress.message}</span>
-                <span>{Math.round((progress.current / Math.max(progress.total, 1)) * 100)}%</span>
-              </div>
-              <div className="w-full bg-gray-200 border-2 border-black h-4 p-0.5">
-                <motion.div 
-                   animate={{ width: `${(progress.current / Math.max(progress.total, 1)) * 100}%` }}
-                   className="bg-red-600 h-full"
-                />
-              </div>
-            </div>
-          )}
-
-          <div className="w-full">
+          <div className="w-full pb-20">
             {items.length === 0 ? (
                <Dropzone onFiles={handleAddFiles} multiple={true} />
             ) : (
@@ -277,20 +320,19 @@ export default function App() {
                         key={item.id} 
                         className="bg-white border-4 border-black p-4 flex flex-col lg:flex-row lg:items-center gap-4 lg:gap-6 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] group hover:shadow-[4px_4px_0px_0px_rgba(220,38,38,1)] transition-shadow"
                       >
-                        {/* Index & Reorder Controls */}
                         <div className="flex items-center gap-3 w-full lg:w-auto shrink-0">
                           <div className="flex lg:flex-col gap-1">
                             <button 
                               onClick={() => moveItem(index, -1)} 
                               disabled={index === 0}
-                              className="p-1 border-2 border-black hover:bg-black hover:text-white disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-black transition-colors min-w-0"
+                              className="p-1 border-2 border-black hover:bg-black hover:text-white disabled:opacity-30 transition-colors"
                             >
                               <ArrowUp className="w-4 h-4" />
                             </button>
                             <button 
                               onClick={() => moveItem(index, 1)} 
                               disabled={index === items.length - 1}
-                              className="p-1 border-2 border-black hover:bg-black hover:text-white disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-black transition-colors min-w-0"
+                              className="p-1 border-2 border-black hover:bg-black hover:text-white disabled:opacity-30 transition-colors"
                             >
                               <ArrowDown className="w-4 h-4" />
                             </button>
@@ -300,9 +342,13 @@ export default function App() {
                           </div>
                         </div>
 
-                        {/* File Info */}
                         <div className="flex-1 min-w-0 flex flex-col gap-1 mb-1">
-                          <p className="font-black uppercase text-xl lg:text-2xl truncate" title={item.name}>{item.name}</p>
+                          <p 
+                            className="font-black uppercase text-xl lg:text-2xl truncate cursor-help" 
+                            title={item.name}
+                          >
+                            {item.name}
+                          </p>
                           <div className="flex flex-wrap items-center gap-2">
                              <span className="text-[10px] uppercase font-mono text-gray-500 bg-gray-100 px-2 py-0.5 border border-gray-300">
                                {(item.size / 1024 / 1024).toFixed(2)} MB
@@ -310,11 +356,16 @@ export default function App() {
                              <span className="text-[10px] uppercase font-mono text-gray-500 bg-gray-100 px-2 py-0.5 border border-gray-300">
                                {item.totalPages} Pages
                              </span>
+                             {item.annotations && item.annotations.length > 0 && (
+                                <span className="text-[10px] uppercase font-mono text-red-600 bg-red-100 px-2 py-0.5 border border-red-300 font-bold">
+                                  {item.annotations.length} Annotations
+                                </span>
+                             )}
                           </div>
                         </div>
 
-                        {/* Controls (Range Input & Delete) */}
                         <div className="flex items-end gap-3 shrink-0 w-full lg:w-auto">
+                          
                           <div className="flex-1 lg:w-48 flex flex-col gap-1">
                             <label className="text-[10px] font-black uppercase text-black">Pages to keep</label>
                             <input 
@@ -326,6 +377,7 @@ export default function App() {
                               className="w-full border-4 border-black px-3 font-mono text-sm outline-none focus:border-red-600 transition-colors bg-[#F9F9F9] placeholder-gray-400 h-[48px]"
                             />
                           </div>
+                          
                           <button 
                             onClick={() => removeItem(item.id)} 
                             className="p-3 border-4 border-black hover:border-red-600 text-black hover:text-white hover:bg-red-600 transition-colors h-[48px] flex items-center justify-center shrink-0"
@@ -333,12 +385,12 @@ export default function App() {
                           >
                             <Trash2 className="w-5 h-5" />
                           </button>
+
                         </div>
                       </motion.div>
                    ))}
                  </AnimatePresence>
                  
-                 {/* Quick Add Area */}
                  <motion.div layout className="mt-4">
                     <Dropzone onFiles={handleAddFiles} multiple={true} className="h-28 border-2 border-dashed shadow-none hover:shadow-[4px_4px_0px_0px_rgba(220,38,38,1)]" />
                  </motion.div>
@@ -348,10 +400,9 @@ export default function App() {
         </section>
       </main>
 
-      {/* Footer Info */}
-      <footer className="h-12 bg-black text-white px-4 sm:px-10 flex items-center justify-between text-[10px] font-mono uppercase tracking-widest mt-auto shrink-0">
+      <footer className="h-12 bg-black text-white px-4 sm:px-10 flex items-center justify-between text-[10px] font-mono uppercase tracking-widest mt-auto shrink-0 relative z-10">
         <div className="hidden sm:flex items-center gap-6">
-          <span>System Architecture: v3.0.0-PRO</span>
+          <span>System Architecture: v4.0.0-PRO-EDITION</span>
           <a href="https://github.com/eliasc9/pdf-lab" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 hover:text-red-500 transition-colors">
             <Github className="w-3 h-3" />
             <span>GitHub / Open Source</span>
