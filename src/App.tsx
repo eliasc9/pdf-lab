@@ -191,13 +191,20 @@ export default function App() {
             const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
             const pdf = await loadingTask.promise;
             
-            const compressionMap = { 'low': 0.9, 'medium': 0.6, 'high': 0.3 };
-            const quality = compressionMap[exportSettings.compression as keyof typeof compressionMap] || 0.6;
+            const compressionMap = { 
+              'ultra': { quality: 0.95, scale: 3.5 },
+              'low': { quality: 0.9, scale: 2.5 }, 
+              'medium': { quality: 0.7, scale: 2.0 }, 
+              'high': { quality: 0.4, scale: 1.5 } 
+            };
+            const settings = compressionMap[exportSettings.compression as keyof typeof compressionMap] || compressionMap.medium;
+            const quality = settings.quality;
+            const renderScale = settings.scale;
             
             for (const pageIndex of pages) {
                 setProgress({ current: processedSteps, total: Math.max(totalSteps, 1), message: `Rendering Pg ${pageIndex+1} of ${item.name}` });
                 const page = await pdf.getPage(pageIndex + 1); 
-                const viewport = page.getViewport({ scale: 2.0 }); 
+                const viewport = page.getViewport({ scale: renderScale }); 
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
                 if (ctx) {
@@ -210,10 +217,10 @@ export default function App() {
                     pageAnns.forEach(ann => {
                        metadataAnnotations.push({ ...ann, pageIndex: globalResultPageIndex });
                        if (ann.type === 'text' && ann.text) {
-                           const fontSize = ann.size ? ann.size * 2 : 48; // since we use scale: 2.0
+                           const fontSize = ann.size ? ann.size * renderScale : 48; 
                            ctx.font = `${ann.bold ? '900' : '400'} ${fontSize}px sans-serif`; 
                            ctx.fillStyle = 'black';
-                           ctx.textBaseline = 'bottom'; // exact matching to baseline red line
+                           ctx.textBaseline = 'bottom'; 
                            ctx.fillText(ann.text, ann.x * canvas.width, ann.y * canvas.height);
                        }
                     });

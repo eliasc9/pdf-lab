@@ -205,8 +205,9 @@ export function PdfEditor({ items, onExport, onCancel }: PdfEditorProps) {
   const baseSize = localItems.reduce((acc, item) => acc + item.size, 0);
   const metadataPadding = settings.embedMetadata ? localItems.reduce((acc, it) => acc + (it.annotations?.length || 0) * 1500, 0) : 0;
   const totalSizeMB = ((baseSize + metadataPadding) / 1024 / 1024).toFixed(3);
-  const estimatedCompressionMultiplier = settings.compression === 'high' ? 0.3 : (settings.compression === 'medium' ? 0.6 : 0.9);
-  const estimatedFinalSizeMB = ((baseSize * estimatedCompressionMultiplier + metadataPadding) / 1024 / 1024).toFixed(3);
+  const compMap: Record<string, number> = { 'ultra': 3.5, 'low': 1.5, 'medium': 0.8, 'high': 0.4 };
+  const mult = compMap[settings.compression] || 0.8;
+  const estimatedFinalSizeMB = ((baseSize * mult + metadataPadding) / 1024 / 1024).toFixed(3);
 
   return (
      <div className="flex flex-col lg:flex-row h-full w-full absolute inset-0 z-50 bg-white">
@@ -235,16 +236,24 @@ export function PdfEditor({ items, onExport, onCancel }: PdfEditorProps) {
 
                 {settings.forceImage && (
                     <div>
-                        <label className="font-bold uppercase text-xs text-gray-500 mb-2 block tracking-wider">Image Quality Compression</label>
-                        <div className="flex border-4 border-black font-black uppercase text-sm shadow-[4px_4px_0_0_#000]">
+                        <label className="font-bold uppercase text-xs text-gray-500 mb-2 block tracking-wider">Output Resolution & Quality</label>
+                        <div className="grid grid-cols-2 gap-2">
+                           <button 
+                              onClick={() => setSettings({...settings, compression: 'ultra'})}
+                              className={cn("py-2 px-1 border-4 border-black font-black uppercase text-[10px] transition-colors shadow-[2px_2px_0_0_#000]", settings.compression === 'ultra' ? "bg-red-600 text-white" : "bg-white text-black hover:bg-gray-100")}
+                           >Ultra (HD+)</button>
+                           <button 
+                              onClick={() => setSettings({...settings, compression: 'low'})}
+                              className={cn("py-2 px-1 border-4 border-black font-black uppercase text-[10px] transition-colors shadow-[2px_2px_0_0_#000]", settings.compression === 'low' ? "bg-black text-white" : "bg-white text-black hover:bg-gray-100")}
+                           >High Quality</button>
                            <button 
                               onClick={() => setSettings({...settings, compression: 'medium'})}
-                              className={cn("flex-1 py-3 text-center transition-colors border-r-4 border-black", settings.compression === 'medium' ? "bg-black text-white" : "bg-white text-black hover:bg-gray-200")}
+                              className={cn("py-2 px-1 border-4 border-black font-black uppercase text-[10px] transition-colors shadow-[2px_2px_0_0_#000]", settings.compression === 'medium' ? "bg-black text-white" : "bg-white text-black hover:bg-gray-100")}
                            >Standard</button>
                            <button 
                               onClick={() => setSettings({...settings, compression: 'high'})}
-                              className={cn("flex-1 py-3 text-center transition-colors", settings.compression === 'high' ? "bg-black text-white" : "bg-white text-black hover:bg-gray-200")}
-                           >High Compress</button>
+                              className={cn("py-2 px-1 border-4 border-black font-black uppercase text-[10px] transition-colors shadow-[2px_2px_0_0_#000]", settings.compression === 'high' ? "bg-black text-white" : "bg-white text-black hover:bg-gray-100")}
+                           >Web (Small)</button>
                         </div>
                     </div>
                 )}
